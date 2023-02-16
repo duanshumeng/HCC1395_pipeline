@@ -12,19 +12,21 @@ workflow pipeline_1 {
         String platform
         String? duplex_umi
         String? read_structure
-        String docker
-        String cluster_config
-        String disk_size
+        Boolean qc=false
+        File? fastq_1
+        File? fastq_2
+        
     }
 
     scatter (sample_id in Samples){
-            call fastp{
+        if (qc){
+              call fastp{
                 input:
                 sample_id = sample_id,
-                file_path = file_path
+                file_path = file_path,
+                docker = "registry.cn-shanghai.aliyuncs.com/hcc1395_aliyun/fastp:0.19.6"
             }
-            
-            call mapping{
+              call mapping as mapping1{
                 input:
                 ref_dir = ref_dir,
                 fasta = fasta,
@@ -36,11 +38,31 @@ workflow pipeline_1 {
                 platform = platform,
                 duplex_umi = duplex_umi,
                 read_structure = read_structure,
-                docker = docker,
-                cluster_config = cluster_config,
-                disk_size = disk_size
+                docker = "registry.cn-shanghai.aliyuncs.com/hcc1395_aliyun/sentieon-genomics:v202112.05",
 
             }
+        }
+
+        if (fastq_1 != ""){
+              call mapping as mapping2{
+                input:
+                ref_dir = ref_dir,
+                fasta = fasta,
+                fastq_1 = fastq_1,
+                fastq_2 = fastq_2,
+                SENTIEON_LICENSE = SENTIEON_LICENSE,
+                group = group,
+                sample = sample_id,
+                platform = platform,
+                duplex_umi = duplex_umi,
+                read_structure = read_structure,
+                docker = "registry.cn-shanghai.aliyuncs.com/hcc1395_aliyun/sentieon-genomics:v202112.05",
+
+            }
+
+        }
+
+
     }
 
 
@@ -66,6 +88,7 @@ task fastp {
 
         # excute env
         Int cpu = 2
+        String docker
         String memory = "4G"
         String disks = "local-disk 50 cloud_ssd"
 
@@ -107,7 +130,7 @@ task fastp {
         cpu: cpu
         memory: memory
         disks: disks
-        docker: "registry-vpc.cn-shanghai.aliyuncs.com/easygene/fastp:v0.20.1_cv1"
+        docker: docker
     }
 
     output {
@@ -124,8 +147,8 @@ task mapping {
     input {
           File ref_dir
           String fasta
-          File fastq_1
-          File fastq_2
+          File? fastq_1
+          File? fastq_2
 
           String SENTIEON_LICENSE
           String group
@@ -133,9 +156,10 @@ task mapping {
           String platform
           String? duplex_umi
           String? read_structure
+          Int cpu = 2
           String docker
-          String cluster_config
-          String disk_size
+          String memory = "4G"
+          String disks = "local-disk 50 cloud_ssd"
 
     }
 
@@ -165,13 +189,22 @@ task mapping {
   >>>
 
   runtime {
-    docker: docker
-    cluster: cluster_config
-    systemDisk: "cloud_ssd 40"
-    dataDisk: "cloud_ssd " + disk_size + " /cromwell_root/"
+        cpu: cpu
+        memory: memory
+        disks: disks
+        docker: docker
   }
   output {
     File sorted_bam = "~{sample}.sorted.bam"
     File sorted_bam_index = "~{sample}.sorted.bam.bai"
   }
 }
+
+task pcard_tools {
+  input{}
+  command<<<
+  >>>
+  output{}
+}
+
+
